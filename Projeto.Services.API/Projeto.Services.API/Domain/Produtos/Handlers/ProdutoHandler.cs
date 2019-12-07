@@ -1,4 +1,5 @@
-﻿using MediatR;
+﻿using AutoMapper;
+using MediatR;
 using Projeto.Services.API.Domain.Produtos.Commands;
 using Projeto.Services.API.Domain.Produtos.Entities;
 using Projeto.Services.API.Infra;
@@ -17,25 +18,20 @@ namespace Projeto.Services.API.Domain.Produtos.Handlers
         IRequestHandler<ProdutoDeleteCommand, string>
     {
         private readonly IMediator mediator;
+        private readonly IMapper mapper;
         private readonly IProdutoRepository repository;
 
         //construtor com entrada de algumentos para usar injecao de dependencia
-        public ProdutoHandler(IMediator mediator, IProdutoRepository repository)
+        public ProdutoHandler(IMediator mediator, IMapper mapper, IProdutoRepository repository)
         {
             this.mediator = mediator;
+            this.mapper = mapper;
             this.repository = repository;
         }
 
         public async Task<string> Handle(ProdutoCreateCommand request, CancellationToken cancellationToken)
         {
-            var produto = new ProdutoEntity
-            {
-                Id = Guid.NewGuid(),
-                Nome = request.Nome,
-                Preco = request.Preco,
-                Quantidade = request.Quantidade
-            };
-
+            var produto = mapper.Map<ProdutoEntity>(request);
             await repository.Create(produto);
 
             await mediator.Publish(new ProdutoActionNotification
@@ -47,14 +43,32 @@ namespace Projeto.Services.API.Domain.Produtos.Handlers
             return await Task.FromResult("Produto cadastrado com sucesso.");
         }
 
-        public Task<string> Handle(ProdutoUpdateCommand request, CancellationToken cancellationToken)
+        public async Task<string> Handle(ProdutoUpdateCommand request, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            var produto = mapper.Map<ProdutoEntity>(request);
+            await repository.Update(produto);
+
+            await mediator.Publish(new ProdutoActionNotification
+            {
+                Produto = produto,
+                Action = ActionNotification.Atualizado
+            });
+
+            return await Task.FromResult("Produto atualizado com sucesso.");
         }
 
-        public Task<string> Handle(ProdutoDeleteCommand request, CancellationToken cancellationToken)
+        public async Task<string> Handle(ProdutoDeleteCommand request, CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            var produto = await repository.GetById(request.Id);
+            await repository.Delete(request.Id);
+
+            await mediator.Publish(new ProdutoActionNotification
+            {
+                Produto = produto,
+                Action = ActionNotification.Excluido
+            });
+
+            return await Task.FromResult("Produto excluído com sucesso.");
         }
     }
 }
